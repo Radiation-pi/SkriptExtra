@@ -1,7 +1,6 @@
 plugins {
     `java-library`
     `maven-publish`
-    id("com.gradleup.shadow") version "9.2.2"
 }
 
 repositories {
@@ -46,6 +45,12 @@ repositories {
 
 }
 dependencies {
+    val localServerDir = providers.gradleProperty("localServerDir").orNull
+    if (localServerDir != null) {
+        // Optional offline compatibility build against the exact server installation.
+        compileOnly(fileTree("$localServerDir/libraries") { include("**/*.jar") })
+        compileOnly(fileTree("$localServerDir/plugins") { include("*.jar") })
+    } else {
     compileOnly(libs.adventure.api)
     compileOnly(libs.paper.api)
     compileOnly(libs.skript)
@@ -53,13 +58,21 @@ dependencies {
     compileOnly(libs.fawe.bukkit)
     compileOnly("com.github.retrooper:packetevents-spigot:2.10.1")
     compileOnly("me.clip:placeholderapi:2.11.6")
+    }
 }
 
 group = "re.imc"
-version = "1.0.4"
+version = "1.0.5"
 description = "SkriptExtra"
 
 tasks {
+    processResources {
+        val pluginVersion = project.version.toString()
+        inputs.property("version", pluginVersion)
+        filesMatching("plugin.yml") {
+            expand("version" to pluginVersion)
+        }
+    }
     withType<JavaCompile> {
         options.encoding = "UTF-8"
     }
@@ -69,14 +82,6 @@ tasks {
         targetCompatibility = JavaVersion.VERSION_21
     }
 
-    build.configure {
-        dependsOn(shadowJar)
-    }
-
-    shadowJar {
-        archiveFileName = "${project.name}-${project.version}.${archiveExtension.get()}"
-        exclude("META-INF/**") // Avoid to include META-INF/maven in Jar
-    }
 }
 
 publishing {

@@ -3,6 +3,7 @@ package re.imc.skriptextra.utils;
 import ch.njol.skript.Skript;
 import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.WorldEdit;
+import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.bukkit.BukkitAdapter;
 import com.sk89q.worldedit.bukkit.BukkitWorld;
 import com.sk89q.worldedit.extent.clipboard.BlockArrayClipboard;
@@ -80,6 +81,8 @@ public class WorldEditUtils {
                     .to(BukkitAdapter.asBlockVector(loc))
                     .build();
             Operations.complete(operation);
+        } catch (WorldEditException e) {
+            throw new IllegalStateException("Unable to paste schematic", e);
         }
         return clipboard;
     }
@@ -92,7 +95,11 @@ public class WorldEditUtils {
         clipboard.setOrigin(BukkitAdapter.asBlockVector(origin));
         ForwardExtentCopy forwardExtentCopy = new ForwardExtentCopy(bukkitWorld, region, clipboard, region.getMinimumPoint());
         forwardExtentCopy.setCopyingEntities(copyEntities);
-        Operations.complete(forwardExtentCopy);
+        try {
+            Operations.complete(forwardExtentCopy);
+        } catch (WorldEditException e) {
+            throw new IllegalStateException("Unable to copy schematic", e);
+        }
 
 
         return clipboard;
@@ -104,6 +111,8 @@ public class WorldEditUtils {
 
         try (EditSession editSession = WorldEdit.getInstance().newEditSession(bukkitWorld)) {
             editSession.setBlocks((Region) region, BukkitAdapter.asBlockState(new ItemStack(type)));
+        } catch (WorldEditException e) {
+            throw new IllegalStateException("Unable to replace blocks", e);
         }
     }
 }

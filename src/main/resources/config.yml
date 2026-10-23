@@ -1,0 +1,26 @@
+# 修改后重启服务器生效；旧配置会自动补充缺少的默认项。
+features:
+  packet-events:
+    # 所有功能均关闭时不注册监听器。PacketEvents 插件自行管理 API 生命周期。
+    enabled: true
+    view-distance:
+      enabled: true
+      # 只修改发给客户端的数值，不增加服务器实际发送的区块。
+      value: 32
+    simulation-distance:
+      enabled: true
+      # 只修改客户端显示值，不改变服务器实际模拟范围。
+      value: 32
+    entity-status-override:
+      enabled: true
+      # 空字符串表示所有玩家。权限在服务器线程每秒刷新一次。
+      permission: "sicilia.admin"
+      # 所有发给符合权限玩家的 entity status 包均会被覆盖，协议值范围 -128..127。
+      status: 28
+    biome-namespace-rewrite:
+      enabled: true
+      registry: "minecraft:worldgen/biome"
+      # 仅替换 terra:sicilia/sicilia/<路径>，保留完整剩余路径和注册表顺序。
+      source-namespace: "terra"
+      source-path-prefix: "sicilia/sicilia/"
+      target-namespace: "sicilia"

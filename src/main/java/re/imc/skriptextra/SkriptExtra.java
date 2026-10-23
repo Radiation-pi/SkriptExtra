@@ -9,7 +9,6 @@ import ch.njol.skript.lang.util.SimpleLiteral;
 import ch.njol.skript.registrations.Classes;
 import ch.njol.skript.registrations.DefaultClasses;
 import ch.njol.skript.util.Version;
-import com.github.retrooper.packetevents.PacketEvents;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import io.papermc.paper.math.Position;
 import org.bukkit.Bukkit;
@@ -22,7 +21,7 @@ import org.jetbrains.annotations.Nullable;
 import re.imc.skriptextra.elements.ExtraClasses;
 import re.imc.skriptextra.utils.placeholderAPI.PlaceholderPlugin;
 import re.imc.skriptextra.utils.placeholderAPI.PlaceholderRegistry;
-import re.imc.skriptextra.utils.BiomeSendingListener;
+import re.imc.skriptextra.utils.PacketEventsIntegration;
 import re.imc.skriptextra.utils.FileHash;
 import re.imc.skriptextra.utils.WorldEditUtils;
 import re.imc.skriptextra.utils.LogUtils;
@@ -36,6 +35,7 @@ public final class SkriptExtra extends JavaPlugin {
     
     private static SkriptExtra instance;
     private PlaceholderRegistry registry;
+    private AutoCloseable packetEventsIntegration;
 
     public static SkriptExtra getInstance() {
         return instance;
@@ -48,6 +48,9 @@ public final class SkriptExtra extends JavaPlugin {
     @Override
     public void onEnable() {
         instance = this;
+        saveDefaultConfig();
+        getConfig().options().copyDefaults(true);
+        saveConfig();
         // 初始化日志 + PacketEvents
         LogUtils.init(this);
         LogUtils.info("启动中...");
@@ -65,9 +68,17 @@ public final class SkriptExtra extends JavaPlugin {
             LogUtils.info("检测到 Placeholder 插件，已启用 Placeholder 功能");
         }
         
-        PacketEvents.getAPI().getEventManager().registerListener(new BiomeSendingListener());
-        PacketEvents.getAPI().init();
-        LogUtils.info("已注册事件监听器...");
+        if (getConfig().getBoolean("features.packet-events.enabled", true)) {
+            if (Bukkit.getPluginManager().isPluginEnabled("packetevents")) {
+                try {
+                    packetEventsIntegration = PacketEventsIntegration.register(this);
+                } catch (RuntimeException | LinkageError e) {
+                    LogUtils.severe("PacketEvents 集成加载失败，已跳过发包修改功能: " + e);
+                }
+            } else {
+                LogUtils.warn("未检测到已启用的 PacketEvents，已跳过发包修改功能");
+            }
+        }
 
         // 注册 Skript 语法 (Events, Expressions, Effects, Sections, Conditions, Structures)
         SkriptAddon addon = Skript.registerAddon(this);
@@ -163,7 +174,14 @@ public final class SkriptExtra extends JavaPlugin {
     @Override
     public void onDisable() {
         LogUtils.info("正在卸载...");
-        PacketEvents.getAPI().terminate();
+        if (packetEventsIntegration != null) {
+            try {
+                packetEventsIntegration.close();
+            } catch (Exception e) {
+                LogUtils.warn("注销 PacketEvents 监听器失败: " + e.getMessage());
+            }
+            packetEventsIntegration = null;
+        }
         instance = null;
         registry = null;
     }

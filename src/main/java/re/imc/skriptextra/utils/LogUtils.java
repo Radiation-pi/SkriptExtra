@@ -9,15 +9,15 @@ import java.util.logging.Logger;
 public final class LogUtils {
 
     private static Logger logger;
-    private static final String VERSION = "@VERSION@";
+    private static String version;
 
     public static void init(JavaPlugin p) {
         logger = p.getLogger();
+        version = p.getDescription().getVersion();
     }
 
     public static void log(String message, Level level) {
-        String prefix = "[SkriptExtra] ";
-        logger.log(level, prefix + VERSION + " " + message);
+        logger.log(level, version + " " + message);
     }
 
     public static void info(String message) {
