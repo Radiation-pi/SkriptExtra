@@ -1,5 +1,7 @@
 package re.imc.skriptextra.elements.expressions;
 
+import re.imc.skriptextra.utils.PluginConfig;
+
 import ch.njol.skript.Skript;
 import ch.njol.skript.doc.Description;
 import ch.njol.skript.doc.Examples;
@@ -52,6 +54,10 @@ public class ExprPlaceholderValue extends SimpleExpression<String> {
 	@SuppressWarnings("unchecked")
 	public boolean init(Expression<?>[] exprs, int matchedPattern, @NotNull Kleenean isDelayed, @NotNull ParseResult parseResult) {
 		isRelational = parseResult.hasTag("relational");
+		if (isRelational && !PluginConfig.bool("features.structures.custom-placeholder.relational", true)) {
+		    Skript.error("Relational placeholders are disabled in SkriptExtra config.yml.");
+		    return false;
+		}
 		placeholders = (Expression<String>) exprs[0];
 		players = (Expression<OfflinePlayer>) exprs[1];
 

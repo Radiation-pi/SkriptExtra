@@ -34,6 +34,9 @@ public class WorldEditUtils {
     public static Map<String, Clipboard> STRUCTURE_CACHE = new ConcurrentHashMap<>();
 
     public static Clipboard loadSchem(File file, String id) {
+        int maximumEntries = PluginConfig.integer("features.functions.worldedit-schematics.maximum-cache-entries", 0);
+        if (maximumEntries > 0 && !STRUCTURE_CACHE.containsKey(id) && STRUCTURE_CACHE.size() >= maximumEntries)
+            throw new IllegalStateException("Schematic cache limit reached");
         ClipboardFormat format = ClipboardFormats.findByFile(file);
 
         try (ClipboardReader reader = format.getReader(new FileInputStream(file))) {

@@ -1,7 +1,6 @@
 package re.imc.skriptextra;
 
 import ch.njol.skript.Skript;
-import ch.njol.skript.SkriptAddon;
 import ch.njol.skript.lang.function.Functions;
 import ch.njol.skript.lang.function.Parameter;
 import ch.njol.skript.lang.function.SimpleJavaFunction;
@@ -25,6 +24,10 @@ import re.imc.skriptextra.utils.PacketEventsIntegration;
 import re.imc.skriptextra.utils.FileHash;
 import re.imc.skriptextra.utils.WorldEditUtils;
 import re.imc.skriptextra.utils.LogUtils;
+import re.imc.skriptextra.utils.PluginConfig;
+import re.imc.skriptextra.utils.MapVariablesFeature;
+import re.imc.skriptextra.utils.MultipleConditionsFeature;
+import re.imc.skriptextra.storage.JdbcStorageIntegration;
 
 import java.io.File;
 import java.io.IOException;
@@ -49,11 +52,21 @@ public final class SkriptExtra extends JavaPlugin {
     public void onEnable() {
         instance = this;
         saveDefaultConfig();
+        if (getConfig().isBoolean("features.conditions.fast-contains")) {
+            boolean enabled = getConfig().getBoolean("features.conditions.fast-contains");
+            getConfig().set("features.conditions.fast-contains", null);
+            getConfig().set("features.conditions.fast-contains.enabled", enabled);
+        }
         getConfig().options().copyDefaults(true);
         saveConfig();
         // 初始化日志 + PacketEvents
         LogUtils.init(this);
         LogUtils.info("启动中...");
+        JdbcStorageIntegration.register(this);
+        if (!PluginConfig.enabled("general.enabled")) {
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
         
         // 检查 Skript 版本
         if (Skript.getVersion().isSmallerThan(new Version(2, 7, 3))) {
@@ -63,7 +76,7 @@ public final class SkriptExtra extends JavaPlugin {
         }
         
         // 初始化 PlaceholderRegistry（如果有可用的placeholder插件）
-        if (!PlaceholderPlugin.getInstalledPlugins().isEmpty()) {
+        if (PluginConfig.enabled("features.placeholder-api.enabled") && !PlaceholderPlugin.getInstalledPlugins().isEmpty()) {
             registry = new PlaceholderRegistry(this);
             LogUtils.info("检测到 Placeholder 插件，已启用 Placeholder 功能");
         }
@@ -81,17 +94,29 @@ public final class SkriptExtra extends JavaPlugin {
         }
 
         // 注册 Skript 语法 (Events, Expressions, Effects, Sections, Conditions, Structures)
-        SkriptAddon addon = Skript.registerAddon(this);
+        Skript.registerAddon(this);
         LogUtils.info("正在加载 Skript 语法...");
-        ExtraClasses.load();
-        try {
-            addon.loadClasses("re.imc.skriptextra.elements", "events", "expressions", "effects", "sections", "conditions", "structures");
-        } catch (IOException e) {
-            LogUtils.severe("An error occurred while loading classes: " + e.getMessage());
+        if (PluginConfig.enabled("features.classes.interact-action")) ExtraClasses.load();
+        MapVariablesFeature.register();
+        MultipleConditionsFeature.register();
+        loadElement("features.events.async-periodical.enabled", "events.EvtAsyncPeriodical");
+        loadElement("features.events.raw-click.enabled", "events.EvtRawClick");
+        loadElement("features.expressions.interact-type", "expressions.ExprInteractType");
+        loadElement("features.expressions.interact-slot", "expressions.ExprInteractSlot");
+        loadElement("features.expressions.nano-time", "expressions.ExprNanoTime");
+        if (registry != null) {
+            loadElement("features.expressions.placeholder-request", "expressions.ExprPlaceholder");
+            loadElement("features.expressions.placeholder-value", "expressions.ExprPlaceholderValue");
+            loadElement("features.expressions.placeholder-result", "expressions.ExprPlaceholderResult");
+            loadElement("features.expressions.relational-placeholder-players", "expressions.ExprRelationalPlaceholderPlayers");
+            loadElement("features.structures.custom-placeholder.enabled", "structures.StructCustomPlaceholder");
         }
+        if (!PluginConfig.bool("features.conditions.fast-contains.disable-when-vessel-present", true)
+                || !Bukkit.getPluginManager().isPluginEnabled("Vessel"))
+            loadElement("features.conditions.fast-contains.enabled", "conditions.CondFastContains");
 
         // 注册 Skript Functions
-        Functions.registerFunction(new SimpleJavaFunction<>("fileSha1",
+        if (PluginConfig.enabled("features.functions.file-sha1.enabled")) Functions.registerFunction(new SimpleJavaFunction<>("fileSha1",
             new Parameter[]{new Parameter<>("file", DefaultClasses.OBJECT, true, null)},
             DefaultClasses.STRING, true) {
             @Override
@@ -110,8 +135,8 @@ public final class SkriptExtra extends JavaPlugin {
         });
 
         // WorldEdit 相关函数
-        if (Bukkit.getPluginManager().isPluginEnabled("WorldEdit")) {
-            Functions.registerFunction(new SimpleJavaFunction<>("loadSchem", new Parameter[]{new Parameter<>("file", DefaultClasses.OBJECT, true, null), new Parameter<>("id", DefaultClasses.STRING, true, null)}, DefaultClasses.OBJECT, true) {
+        if (PluginConfig.enabled("features.functions.worldedit-schematics.enabled") && Bukkit.getPluginManager().isPluginEnabled("WorldEdit")) {
+            if (PluginConfig.enabled("features.functions.worldedit-schematics.load")) Functions.registerFunction(new SimpleJavaFunction<>("loadSchem", new Parameter[]{new Parameter<>("file", DefaultClasses.OBJECT, true, null), new Parameter<>("id", DefaultClasses.STRING, true, null)}, DefaultClasses.OBJECT, true) {
                 @Override
                 public Object @Nullable [] executeSimple(Object[][] objects) {
                     String id = objects[1][0].toString();
@@ -126,12 +151,12 @@ public final class SkriptExtra extends JavaPlugin {
                 }
             });
 
-            Functions.registerFunction(new SimpleJavaFunction<>("placeSchem", new Parameter[]{
+            if (PluginConfig.enabled("features.functions.worldedit-schematics.place")) Functions.registerFunction(new SimpleJavaFunction<>("placeSchem", new Parameter[]{
                     new Parameter<>("id", DefaultClasses.STRING, true, null),
                     new Parameter<>("loc", DefaultClasses.LOCATION, true, null),
                     new Parameter<>("direction", DefaultClasses.STRING, true, null),
-                    new Parameter<>("ignoreair", DefaultClasses.BOOLEAN, true, new SimpleLiteral<>(false, true)),
-                    new Parameter<>("async", DefaultClasses.BOOLEAN, true, new SimpleLiteral<>(true, true))
+                    new Parameter<>("ignoreair", DefaultClasses.BOOLEAN, true, new SimpleLiteral<>(PluginConfig.bool("features.functions.worldedit-schematics.default-ignore-air", false), true)),
+                    new Parameter<>("async", DefaultClasses.BOOLEAN, true, new SimpleLiteral<>(PluginConfig.bool("features.functions.worldedit-schematics.default-async", true), true))
 
             }, DefaultClasses.OBJECT, true) {
                 @Override
@@ -148,7 +173,7 @@ public final class SkriptExtra extends JavaPlugin {
         }
 
         // 注册 sendMultiBlockChange 更改函数
-        Functions.registerFunction(new SimpleJavaFunction<>("sendMultiBlockChange", new Parameter[]{
+        if (PluginConfig.enabled("features.functions.send-multi-block-change.enabled")) Functions.registerFunction(new SimpleJavaFunction<>("sendMultiBlockChange", new Parameter[]{
                 new Parameter("players", DefaultClasses.PLAYER, false, null),
                 new Parameter("blockdata", Classes.getExactClassInfo(BlockData.class), true, null),
                 new Parameter("locations", DefaultClasses.LOCATION, false, null)
@@ -158,6 +183,12 @@ public final class SkriptExtra extends JavaPlugin {
                 Player[] players = (Player[]) objects[0];
                 BlockData blockData = (BlockData) objects[1][0];
                 Location[] locations = (Location[]) objects[2];
+                int maxPlayers = PluginConfig.integer("features.functions.send-multi-block-change.maximum-players", 0);
+                int maxLocations = PluginConfig.integer("features.functions.send-multi-block-change.maximum-locations", 0);
+                if ((maxPlayers > 0 && players.length > maxPlayers) || (maxLocations > 0 && locations.length > maxLocations)) {
+                    LogUtils.warn("sendMultiBlockChange 超过配置的玩家或方块数量限制");
+                    return null;
+                }
                 Map<Position, BlockData> blocks = new HashMap<>();
                 for (Location location : locations) {
                     blocks.put(Position.block(location), blockData);
@@ -169,6 +200,15 @@ public final class SkriptExtra extends JavaPlugin {
             }
         });
         LogUtils.info("已完成加载...");
+    }
+
+    private void loadElement(String configPath, String className) {
+        if (!PluginConfig.enabled(configPath)) return;
+        try {
+            Class.forName("re.imc.skriptextra.elements." + className, true, getClassLoader());
+        } catch (ClassNotFoundException e) {
+            throw new IllegalStateException("Missing SkriptExtra syntax " + className, e);
+        }
     }
 
     @Override

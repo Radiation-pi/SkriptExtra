@@ -1,5 +1,7 @@
 package re.imc.skriptextra.elements.structures;
 
+import re.imc.skriptextra.utils.PluginConfig;
+
 import ch.njol.skript.ScriptLoader;
 import ch.njol.skript.Skript;
 import ch.njol.skript.config.SectionNode;
@@ -82,6 +84,10 @@ static {
 
 	    this.registry = SkriptExtra.getInstance().getRegistry();
 	    this.isRelational = parseResult.hasTag("relational");
+	    if (isRelational && !PluginConfig.bool("features.structures.custom-placeholder.relational", true)) {
+	        Skript.error("Relational placeholders are disabled in SkriptExtra config.yml.");
+	        return false;
+	    }
 	    this.entryContainer = entryContainer;
 
 	    return true;

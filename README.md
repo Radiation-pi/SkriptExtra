@@ -1,6 +1,6 @@
 # SkriptExtra
 
-Skript 扩展。Java 21+，需要 Skript；WorldEdit、PlaceholderAPI、PacketEvents 为可选插件。
+Skript 扩展。Java 21+，需要 Skript；WorldEdit、PlaceholderAPI、PacketEvents、skript-reflect 为可选插件。JDBC 变量存储已在 Skript 2.16.2 验证。
 
 ## 构建
 
@@ -8,7 +8,7 @@ Skript 扩展。Java 21+，需要 Skript；WorldEdit、PlaceholderAPI、PacketEv
 ./gradlew build
 ```
 
-输出 `build/libs/SkriptExtra-1.0.5.jar`。版本只在 `build.gradle.kts` 定义，构建时写入 `plugin.yml`，日志读取该元数据；Bukkit 自行添加 `[SkriptExtra]` 前缀。所有依赖都是 `compileOnly`，使用普通 JAR，无需 Shadow。
+输出 `build/libs/SkriptExtra-1.1.0.jar`。版本只在 `build.gradle.kts` 定义，构建时写入 `plugin.yml`，日志读取该元数据；Bukkit 自行添加 `[SkriptExtra]` 前缀。JAR 内含 MariaDB JDBC Driver 3.5.6，其余服务器 API 为 `compileOnly`；不需要 SQLibrary 或另外安装驱动。
 
 也可以使用服务器已安装的依赖进行离线兼容构建：
 
@@ -17,6 +17,73 @@ Skript 扩展。Java 21+，需要 Skript；WorldEdit、PlaceholderAPI、PacketEv
 ```
 
 此模式用于验证指定服务器的 API，不能据此推断其他版本兼容性。
+
+`build` 同时执行本地恢复日志的独立测试；数据库集成测试需要显式运行 `JdbcWriterIntegration`，仅限可丢弃的测试库。
+
+## JDBC 全局变量存储
+
+此功能接入 Skript 的变量存储 SPI。普通 `set {全局变量}`、列表变量及删除会继续使用 Skript 的序列化，通过后台单写入器批量提交。读取走 Skript 内存；局部变量和 Skript 自身排除的临时变量不会因此持久化。
+
+必须同时修改以下两处配置，并重启服务器；插件不自动改写 Skript 配置：
+
+1. `plugins/SkriptExtra/config.yml` 中设 `features.variable-storage.enabled: true`（默认 `false`）。
+2. 在 `plugins/Skript/config.sk` 的 `databases` 中选择 `type: extra-jdbc`，配置连接及变量匹配范围。例如只接管 `g_` 前缀：
+
+```yaml
+databases:
+    global:
+        type: extra-jdbc
+        pattern: g_.*
+        host: localhost
+        port: 3306
+        user: your_user
+        password: your_password
+        database: your_database
+        table: skript_global
+        monitor changes: false
+        ssl mode: disable
+    default:
+        type: CSV
+        pattern: .*
+        file: ./plugins/Skript/variables.csv
+        backup interval: 2 hours
+        backups to keep: -1
+```
+
+数据库按**从上到下首次匹配**路由。要接管更多变量，应明确调整 pattern 和顺序；仅打开 Extra 的开关不会迁移变量。不要保留仍为 `MySQL`/`SQLite` 的旧配置再直接删除 SQLibrary，即使该条目被更早的 CSV 规则覆盖，Skript 启动时仍会尝试加载它。无用条目应设 `type: disabled`。
+
+默认 `ssl mode: disable` 适合本机连接；远程数据库应配置 `verify-full` 并正确提供受信任证书。支持 `disable`、`trust`、`verify-ca`、`verify-full`。
+
+Extra 的 `features.variable-storage` 参数：
+
+| 参数 | 默认值 | 行为 |
+| --- | --- | --- |
+| `enabled` | `false` | 允许启用 `extra-jdbc` 后端；配置仍引用该类型时关闭开关会中止服务器启动，避免空加载。 |
+| `warn-legacy-sqlibrary` | `true` | 独立检测原生 MySQL 配置并在控制台 WARN，提示迁移后再移除 SQLibrary；仅安装 SQLibrary 不触发 MySQL 慢存储告警。 |
+| `batch-size` | `512` | 每次最多处理 1–4096 条日志；同批同变量只提交最终状态。 |
+| `flush-interval-ms` | `25` | 空闲时的批次检查和恢复日志定期 fsync 间隔，允许 1–1000ms；不是从 Skript `set` 返回起计算的落盘承诺。 |
+| `retry-delay-ms` | `250` | 临时故障初始等待，指数退避至最多约 5 秒；告警最多每 10 秒一次。 |
+| `connect-timeout-ms` / `socket-timeout-ms` | `3000` / `5000` | 单次连接和 IO 超时，100–30000ms。 |
+| `shutdown-timeout-ms` | `30000` | 关闭期间继续提交的期限；另允许一次在途连接/IO 完成。超时后保留日志供下次启动回放。 |
+| `maximum-journal-mib` | `256` | 每张表的恢复日志磁盘上限；达到上限会请求停服，需处理数据库或磁盘故障。 |
+
+### 数据与迁移
+
+连接的数据库必须预先存在，账号需要建表（首次启动）、读取、插入、更新、删除及获取会话 advisory lock 的权限。新表使用 InnoDB、区分大小写的变量名、MEDIUMBLOB 值。也支持原生 SQLibrary 的 `name/type/value/update_guid`、唯一 name 索引、InnoDB 表，保留其原有字段及大小限制；不会自动 ALTER 旧表或改变字符集。原型或其他插件的表可能不兼容，不能直接复用。
+
+迁移原生 MySQL 时先正常停服、备份数据库和 CSV，保持相同表和 pattern，改类型并关闭 `monitor changes`。此实现是**单服务器写入**，使用数据库会话锁拒绝另一个 addon 写入器；不支持原生监视、多服共享状态或外部写入。旧的 SQLibrary 写入器不会遵守此锁，必须先停止。跨存储重新分配仍由 Skript 执行，调整 pattern 前务必离线备份并核验数据。
+
+没有可写连接、表结构不兼容、无法反序列化、Skript 私有加载接口变化或日志校验失败时，会请求停服并中止加载，不会自动退回 CSV。加载桥使用受控反射，升级 Skript 后必须先在隔离环境验证。
+
+后台事务失败会回滚并保留批次；断线、锁等待等暂时故障重连后重试。权限、字段长度、表结构等永久错误会停止服务器，保留未提交日志。日志位于 `plugins/SkriptExtra/variable-journal/`，校验完整帧，修复崩溃留下的不完整尾帧；数据库提交成功后才回收。不要删除该目录或带着未提交日志切换连接地址，否则会失去恢复入口。
+
+驱动使用独立类加载器，允许 Paper 先卸载 Extra，再由 Skript 在脚本卸载及保存队列排空后关闭数据库。必须完整重启，不支持热重载插件。
+
+本地日志仅保护已经送达此后端的变更。Skript 的内存保存队列及尚未 fsync 的末尾仍存在崩溃/掉电窗口，普通 `set` 返回也不代表数据库已提交；磁盘已满时同样无法承诺新变更持久化。它不提供跨变量业务事务，也不适合作为交易流水。
+
+## 本服语法兼容
+
+1.1.0 合入现服 JAR 中已有的 map、嵌入 section、多条件 `&&`/`||` 及功能配置，避免部署时覆盖丢失。嵌入 section 需要 skript-reflect；与 Vessel 的冲突检测保留。相关开关在 `features.map-variables`、`features.conditions` 及各事件/表达式配置中。
 
 ## PacketEvents 配置
 
@@ -41,4 +108,4 @@ Skript 扩展。Java 21+，需要 Skript；WorldEdit、PlaceholderAPI、PacketEv
 - 网络包线程不读取 Bukkit 配置或玩家权限。
 - 补充 PlaceholderAPI 加载顺序与普通 WorldEdit 受检异常兼容。
 
-本服原有 JAR 包含仓库之外的 map/multiple-condition 等扩展；本项目构建不会自动合并这些本地功能。部署前应单独对齐，避免覆盖功能。本次构建验证不代表对所有旧语法和所有客户端完成全面验收。
+构建与本服验证不代表对所有 Minecraft、Skript 或客户端版本完成全面验收。

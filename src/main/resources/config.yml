@@ -1,26 +1,125 @@
-# 修改后重启服务器生效；旧配置会自动补充缺少的默认项。
+# SkriptExtra 配置文件
+# 修改语法开关后需要重启服务器。Skript 语法一旦注册，无法通过 reload 安全卸载。
+
+general:
+  # 插件总开关。关闭后插件会在启动时自行禁用。
+  enabled: true
+
 features:
+  variable-storage:
+    # 开关与 Skript/config.sk 的 type: extra-jdbc 必须配套修改并重启。
+    # 默认关闭，不会自动改写、导入或接管已有存储。
+    enabled: false
+    # 原生 MySQL/SQLibrary 配置告警独立于上面的存储开关。
+    warn-legacy-sqlibrary: true
+    batch-size: 512
+    flush-interval-ms: 25
+    retry-delay-ms: 250
+    connect-timeout-ms: 3000
+    socket-timeout-ms: 5000
+    shutdown-timeout-ms: 30000
+    # 未提交变更的磁盘日志上限；达到上限会停止服务器，请先解决数据库故障。
+    maximum-journal-mib: 256
+
+  classes:
+    # 注册 interact action 类型，供 raw click 相关表达式使用。
+    interact-action: true
+
+  events:
+    async-periodical:
+      enabled: true
+      # 周期小于该值时会提升到此 tick 数，1 tick = 0.05 秒。
+      minimum-period-ticks: 1
+    raw-click:
+      enabled: true
+      # 是否接收普通方块/空气交互事件。
+      player-interact: true
+      # 是否接收实体交互事件，包括精确点击实体位置事件。
+      entity-interact: true
+      # 是否接收副手产生的交互事件。
+      off-hand: true
+
+  expressions:
+    interact-type: true
+    interact-slot: true
+    nano-time: true
+    placeholder-request: true
+    placeholder-value: true
+    placeholder-result: true
+    relational-placeholder-players: true
+
+  conditions:
+    fast-contains:
+      enabled: true
+      disable-when-vessel-present: true
+    multiple:
+      enabled: true
+      disable-when-vessel-present: true
+      and-pattern: "<.+> && <.+>"
+      or-pattern: '<.+> \|\| <.+>'
+
+  structures:
+    custom-placeholder:
+      enabled: true
+      # 是否允许创建 relational PlaceholderAPI 占位符。
+      relational: true
+
+  map-variables:
+    enabled: true
+    # map 区段内是否允许保存 skript-reflect section。
+    embedded-sections: true
+    # 检测到 Vessel 时关闭此功能，避免重复注册同名语法。
+    disable-when-vessel-present: true
+    # true 时每次 map 前先清空目标列表变量；false 保持 Vessel 原有的合并行为。
+    clear-before-map: false
+    # 数组条目的起始下标。
+    array-start-index: 1
+    # Skript map 区段语法。除非清楚 Skript patterns，否则不要修改。
+    pattern: "(set var[iable]s|map) %objects%"
+    embedded-section-pattern: "sec[tion] <.+> [with [arguments] [variables] %-objects%]"
+
+  functions:
+    file-sha1:
+      enabled: true
+      # 允许读取的最大文件大小，单位 MiB。设为 0 表示不限制。
+      maximum-file-size-mib: 0
+    worldedit-schematics:
+      enabled: true
+      load: true
+      place: true
+      # placeSchem 未提供可选参数时使用的默认值。
+      default-ignore-air: false
+      default-async: true
+      # 缓存的最大 schematic 数量。设为 0 表示不限制。
+      maximum-cache-entries: 0
+    send-multi-block-change:
+      enabled: true
+      # 单次调用允许发送的最大方块数。设为 0 表示不限制。
+      maximum-locations: 0
+      # 单次调用允许的最大玩家数。设为 0 表示不限制。
+      maximum-players: 0
+
+  placeholder-api:
+    # PlaceholderAPI 集成总开关，会影响占位符读取和自定义占位符。
+    enabled: true
+
   packet-events:
-    # 所有功能均关闭时不注册监听器。PacketEvents 插件自行管理 API 生命周期。
+    # PacketEvents 集成总开关。所有子功能关闭时不会注册监听器。
     enabled: true
     view-distance:
       enabled: true
-      # 只修改发给客户端的数值，不增加服务器实际发送的区块。
       value: 32
     simulation-distance:
       enabled: true
-      # 只修改客户端显示值，不改变服务器实际模拟范围。
       value: 32
     entity-status-override:
       enabled: true
-      # 空字符串表示所有玩家。权限在服务器线程每秒刷新一次。
       permission: "sicilia.admin"
-      # 所有发给符合权限玩家的 entity status 包均会被覆盖，协议值范围 -128..127。
       status: 28
     biome-namespace-rewrite:
       enabled: true
       registry: "minecraft:worldgen/biome"
-      # 仅替换 terra:sicilia/sicilia/<路径>，保留完整剩余路径和注册表顺序。
+      # 把 terra:sicilia/sicilia/<群系> 自动替换为 sicilia:<群系>。
       source-namespace: "terra"
       source-path-prefix: "sicilia/sicilia/"
       target-namespace: "sicilia"
