@@ -8,7 +8,7 @@ Skript 扩展。Java 21+，需要 Skript；WorldEdit、PlaceholderAPI、PacketEv
 ./gradlew build
 ```
 
-输出 `build/libs/SkriptExtra-1.1.0.jar`。版本只在 `build.gradle.kts` 定义，构建时写入 `plugin.yml`，日志读取该元数据；Bukkit 自行添加 `[SkriptExtra]` 前缀。JAR 内含 MariaDB JDBC Driver 3.5.6，其余服务器 API 为 `compileOnly`；不需要 SQLibrary 或另外安装驱动。
+输出 `build/libs/SkriptExtra-1.1.0.jar`。JAR 内含 MariaDB JDBC Driver 3.5.6，其余服务器 API 为 `compileOnly`；不需要 SQLibrary 或另外安装驱动。
 
 也可以使用服务器已安装的依赖进行离线兼容构建：
 
@@ -81,9 +81,9 @@ Extra 的 `features.variable-storage` 参数：
 
 本地日志仅保护已经送达此后端的变更。Skript 的内存保存队列及尚未 fsync 的末尾仍存在崩溃/掉电窗口，普通 `set` 返回也不代表数据库已提交；磁盘已满时同样无法承诺新变更持久化。它不提供跨变量业务事务，也不适合作为交易流水。
 
-## 本服语法兼容
+## 语法与功能配置
 
-1.1.0 合入现服 JAR 中已有的 map、嵌入 section、多条件 `&&`/`||` 及功能配置，避免部署时覆盖丢失。嵌入 section 需要 skript-reflect；与 Vessel 的冲突检测保留。相关开关在 `features.map-variables`、`features.conditions` 及各事件/表达式配置中。
+支持 map 变量、嵌入 section 及多条件 `&&`/`||`。嵌入 section 需要 skript-reflect，并检测与 Vessel 的冲突。相关开关在 `features.map-variables`、`features.conditions` 及各事件/表达式配置中。
 
 ## PacketEvents 配置
 
@@ -98,14 +98,6 @@ Extra 的 `features.variable-storage` 参数：
 | `entity-status-override` | `permission` 默认 `sicilia.admin`，空串允许所有玩家；`status` 为 -128–127，默认 28。符合权限的接收者所收到的所有 entity status 包都会被覆盖。权限缓存每秒在服务器线程刷新。 |
 | `biome-namespace-rewrite` | `registry`、`source-namespace`、`source-path-prefix`、`target-namespace`：默认把 `terra:sicilia/sicilia/<完整剩余路径>` 转为 `sicilia:<完整剩余路径>`。其他命名空间、不匹配路径和空后缀保持原样。重写产生重复 ID 时整包保持原样并警告。 |
 
-默认启用四组功能，以保留既有行为。无效的范围或命名空间会禁用对应组并警告。四组全部关闭时不注册监听器；没有安装 PacketEvents 时跳过集成。API 初始化和终止始终由 PacketEvents 插件负责，Extra 只注册和注销自己的监听器。
-
-## 1.0.5 修复
-
-- 移除重复日志前缀；使用插件元数据版本，消除 `@VERSION@`。
-- 添加并接入 PE 总开关、分项开关与参数；避免缺少可选依赖时启动失败、Extra 卸载时终止共享 API。
-- 群系路径不再使用固定数组下标，保留嵌套路径，并检查目标 ID 冲突。
-- 网络包线程不读取 Bukkit 配置或玩家权限。
-- 补充 PlaceholderAPI 加载顺序与普通 WorldEdit 受检异常兼容。
+默认启用四组功能。无效的范围或命名空间会禁用对应组并警告。四组全部关闭时不注册监听器；没有安装 PacketEvents 时跳过集成。API 初始化和终止始终由 PacketEvents 插件负责，Extra 只注册和注销自己的监听器。
 
 构建与本服验证不代表对所有 Minecraft、Skript 或客户端版本完成全面验收。
