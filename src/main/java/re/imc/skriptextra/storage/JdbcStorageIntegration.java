@@ -4,6 +4,7 @@ import ch.njol.skript.SkriptConfig;
 import ch.njol.skript.config.Config;
 import ch.njol.skript.config.Node;
 import ch.njol.skript.config.SectionNode;
+import ch.njol.skript.log.SkriptLogger;
 import ch.njol.skript.variables.Variables;
 import org.bukkit.Bukkit;
 import re.imc.skriptextra.SkriptExtra;
@@ -38,14 +39,21 @@ public final class JdbcStorageIntegration {
     }
 
     private static List<String> configuredTypes() {
-        Config config = SkriptConfig.getConfig();
-        if (config == null) throw new IllegalStateException("Skript configuration is not loaded");
-        Node databases = config.getMainNode().get("databases");
-        List<String> types = new ArrayList<>();
-        if (databases instanceof SectionNode section)
-            for (Node node : section) if (node instanceof SectionNode database)
-                types.add(database.get("type", "disabled"));
-        return types;
+        // SectionNode iteration changes Skript's diagnostic node, even for read-only scans.
+        // Restore the caller's context so later hook notices do not point at config.sk.
+        Node previousNode = SkriptLogger.getNode();
+        try {
+            Config config = SkriptConfig.getConfig();
+            if (config == null) throw new IllegalStateException("Skript configuration is not loaded");
+            Node databases = config.getMainNode().get("databases");
+            List<String> types = new ArrayList<>();
+            if (databases instanceof SectionNode section)
+                for (Node node : section) if (node instanceof SectionNode database)
+                    types.add(database.get("type", "disabled"));
+            return types;
+        } finally {
+            SkriptLogger.setNode(previousNode);
+        }
     }
 
     private static void warnLegacy(SkriptExtra plugin) {
