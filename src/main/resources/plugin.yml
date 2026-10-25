@@ -1,9 +1,0 @@
-name: SkriptExtra
-version: '${version}'
-description: Extra Skript functions and features
-main: re.imc.skriptextra.SkriptExtra
-api-version: '1.21'
-authors: [ zimzaza4 , Radiation_pi ]
-depend: [ Skript ]
-
-softdepend: [ WorldEdit, FastAsyncWorldEdit, packetevents, PlaceholderAPI, skript-reflect ]

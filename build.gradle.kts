@@ -67,7 +67,7 @@ dependencies {
 }
 
 group = "re.imc"
-version = "1.1.1"
+version = "1.2.0"
 description = "SkriptExtra"
 
 tasks {
@@ -79,7 +79,7 @@ tasks {
     processResources {
         val pluginVersion = project.version.toString()
         inputs.property("version", pluginVersion)
-        filesMatching("plugin.yml") {
+        filesMatching("paper-plugin.yml") {
             expand("version" to pluginVersion)
         }
     }

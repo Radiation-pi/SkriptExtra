@@ -1,0 +1,36 @@
+name: SkriptExtra
+version: '${version}'
+description: Extra Skript functions and features for Paper
+main: re.imc.skriptextra.SkriptExtra
+api-version: '26.2'
+authors: [zimzaza4, Radiation_pi]
+
+# SkriptExtra links directly to Skript's public and storage APIs, so it must
+# be on the server class path before this plugin is enabled. The other entries
+# are optional integrations and are exposed only when present at runtime.
+dependencies:
+  server:
+    Skript:
+      load: BEFORE
+      required: true
+      join-classpath: true
+    WorldEdit:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    FastAsyncWorldEdit:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    packetevents:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    PlaceholderAPI:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    skript-reflect:
+      load: BEFORE
+      required: false
+      join-classpath: true

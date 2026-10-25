@@ -8,7 +8,7 @@ Skript 扩展。Java 21+，需要 Skript；WorldEdit、PlaceholderAPI、PacketEv
 ./gradlew build
 ```
 
-输出 `build/libs/SkriptExtra-1.1.1.jar`。JAR 内含 MariaDB JDBC Driver 3.5.6，其余服务器 API 为 `compileOnly`；不需要 SQLibrary 或另外安装驱动。
+输出 `build/libs/SkriptExtra-1.2.0.jar`。JAR 内含 MariaDB JDBC Driver 3.5.6；其余服务器 API 为 `compileOnly`，不需要 SQLibrary 或另外安装驱动。
 
 也可以使用服务器已安装的依赖进行离线兼容构建：
 
