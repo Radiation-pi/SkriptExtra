@@ -115,6 +115,8 @@ public final class SkriptExtra extends JavaPlugin {
                 || !Bukkit.getPluginManager().isPluginEnabled("Vessel"))
             loadElement("features.conditions.fast-contains.enabled", "conditions.CondFastContains");
 
+        re.imc.skriptextra.avatar.AvatarFunctions.register();
+
         // 注册 Skript Functions
         if (PluginConfig.enabled("features.functions.file-sha1.enabled")) Functions.registerFunction(new SimpleJavaFunction<>("fileSha1",
             new Parameter[]{new Parameter<>("file", DefaultClasses.OBJECT, true, null)},
